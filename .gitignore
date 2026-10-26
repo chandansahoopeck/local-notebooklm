@@ -1,0 +1,21 @@
+# Virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Data folder (contains user files and generated outputs)
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/
