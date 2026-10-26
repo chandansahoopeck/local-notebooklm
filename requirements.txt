@@ -3,9 +3,10 @@ ollama>=0.4
 chromadb>=0.5
 pymupdf>=1.24
 trafilatura>=1.12
-youtube-transcript-api>=0.6.0
+youtube-transcript-api>=1.0
 kokoro>=0.9.4
 soundfile>=0.12
 numpy
 pillow>=10.1
 moviepy>=2.0
+ocrmypdf>=16.0.0

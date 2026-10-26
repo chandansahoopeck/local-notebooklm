@@ -1,4 +1,7 @@
 import re
+import subprocess
+import tempfile
+from pathlib import Path
 
 import pymupdf
 import trafilatura
@@ -8,6 +11,45 @@ from . import config, llm, store
 
 BATCH = 32
 YOUTUBE_ID = re.compile(r"(?:v=|youtu\.be/|shorts/|embed/)([\w-]{11})")
+
+
+def _has_text(doc: pymupdf.Document) -> bool:
+    """Check if PDF has extractable text."""
+    for page in doc:
+        if page.get_text().strip():
+            return True
+    return False
+
+
+def _ocr_pdf(data: bytes) -> bytes:
+    """Run OCR on scanned PDF using ocrmypdf."""
+    try:
+        import ocrmypdf
+    except ImportError:
+        raise ImportError(
+            "OCR is required for scanned PDFs. Install with: pip install ocrmypdf"
+        )
+    
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_in:
+        tmp_in.write(data)
+        tmp_in_path = tmp_in.name
+    
+    tmp_out_path = tmp_in_path + ".ocr.pdf"
+    
+    try:
+        ocrmypdf.ocr(
+            tmp_in_path,
+            tmp_out_path,
+            language="eng",
+            deskew=True,
+            cleanup=True,
+        )
+        with open(tmp_out_path, "rb") as f:
+            ocr_data = f.read()
+        return ocr_data
+    finally:
+        Path(tmp_in_path).unlink(missing_ok=True)
+        Path(tmp_out_path).unlink(missing_ok=True)
 
 
 def _chunks(text: str):
@@ -37,7 +79,15 @@ def _index(notebook: str, source: str, pages: list[tuple[int, str]]) -> int:
 
 def ingest_pdf(notebook: str, name: str, data: bytes) -> int:
     with pymupdf.open(stream=data, filetype="pdf") as doc:
-        pages = [(n, page.get_text()) for n, page in enumerate(doc, 1)]
+        # Check if PDF has text
+        if not _has_text(doc):
+            print(f"⚠️  {name} appears to be a scanned PDF. Running OCR...")
+            data = _ocr_pdf(data)
+            # Re-open the OCR-processed PDF
+            with pymupdf.open(stream=data, filetype="pdf") as doc_ocr:
+                pages = [(n, page.get_text()) for n, page in enumerate(doc_ocr, 1)]
+        else:
+            pages = [(n, page.get_text()) for n, page in enumerate(doc, 1)]
     return _index(notebook, name, pages)
 
 
