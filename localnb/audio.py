@@ -9,11 +9,11 @@ from . import config, llm, studio
 SAMPLE_RATE = 24000
 HOSTS = {"Alex": "af_heart", "Sam": "am_michael"}
 
-PODCAST = """Write a lively podcast conversation between two hosts, Alex and Sam, explaining the material below to a curious listener.
-- Alex guides the conversation and asks questions; Sam explains with concrete examples.
-- Open with a hook, cover the most important ideas, and close with a quick recap.
-- About {turns} turns, each 1-3 sentences, natural spoken style, no stage directions.
-- Use only facts from the material.
+PODCAST = """Write a highly detailed, lively podcast conversation between two hosts, Alex and Sam, explaining the material below to a curious listener.
+- Alex guides the conversation and asks deep, probing questions; Sam explains with concrete examples and thorough explanations.
+- Open with a strong hook, cover the most important ideas in depth, and close with a comprehensive recap.
+- Aim for about {turns} turns. Each turn should be 3-5 sentences long, natural spoken style, no stage directions.
+- Use only facts from the material, but expand on them to ensure a lengthy, engaging discussion.
 Return JSON shaped like {{"lines": [{{"speaker": "Alex", "text": "..."}}, {{"speaker": "Sam", "text": "..."}}]}}.
 
 Material:
@@ -35,7 +35,7 @@ def silence(seconds: float) -> np.ndarray:
     return np.zeros(int(SAMPLE_RATE * seconds), dtype=np.float32)
 
 
-def podcast(notebook: str, sources=None, turns: int = 20):
+def podcast(notebook: str, sources=None, turns: int = 80):
     data = llm.ask_json(PODCAST.format(turns=turns, material=studio.material(notebook, sources)))
     lines = [l for l in data.get("lines", []) if isinstance(l, dict) and l.get("text")]
     if not lines:

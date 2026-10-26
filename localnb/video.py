@@ -17,9 +17,9 @@ FONT_PATHS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 
-VIDEO = """Turn the material below into a {slides}-slide explainer video.
-For each slide give a short title, 2-4 bullet points (under 10 words each),
-and narration of 2-4 spoken sentences that explains the slide. Use only the material.
+VIDEO = """Turn the material below into a comprehensive {slides}-slide explainer video.
+For each slide give a short title, 3-5 bullet points,
+and detailed narration of 4-6 spoken sentences that thoroughly explains the slide. Use only the material.
 Return JSON shaped like {{"scenes": [{{"title": "...", "bullets": ["..."], "narration": "..."}}]}}.
 
 Material:
@@ -54,7 +54,7 @@ def _render_slide(scene: dict, index: int, total: int, path: Path) -> None:
     img.save(path)
 
 
-def explainer(notebook: str, sources=None, slides: int = 6) -> Path:
+def explainer(notebook: str, sources=None, slides: int = 15) -> Path:
     data = llm.ask_json(VIDEO.format(slides=slides, material=studio.material(notebook, sources)))
     scenes = [s for s in data.get("scenes", []) if isinstance(s, dict) and s.get("narration")]
     if not scenes:
