@@ -1,6 +1,8 @@
 import streamlit as st
+import json
+from pathlib import Path
 
-from localnb import audio, chat, ingest, store, studio, video
+from localnb import audio, chat, ingest, store, studio, video, config
 
 st.set_page_config(page_title="Local NotebookLM", layout="wide")
 ss = st.session_state
@@ -9,11 +11,50 @@ ss.setdefault("chats", {})
 ss.setdefault("artifacts", {})
 
 
+def load_existing_artifacts(nb: str):
+    """Load previously generated files from disk into session state."""
+    if nb not in ss.artifacts:
+        ss.artifacts[nb] = {}
+    
+    arts = ss.artifacts[nb]
+    out_dir = config.output_dir(nb)
+    
+    # Load Audio
+    audio_path = out_dir / "audio_overview.wav"
+    audio_json = out_dir / "audio_overview.json"
+    if audio_path.exists() and audio_json.exists():
+        with open(audio_json, "r", encoding="utf-8") as f:
+            lines = json.load(f)
+        arts["Audio overview"] = (audio_path, lines)
+        
+    # Load Video
+    video_path = out_dir / "video_overview.mp4"
+    if video_path.exists():
+        arts["Video overview"] = video_path
+        
+    # Load Text artifacts
+    for name in ["Briefing doc", "FAQ", "Study guide"]:
+        file_name = f"{name.replace(' ', '_').lower()}.md"
+        file_path = out_dir / file_name
+        if file_path.exists():
+            arts[name] = file_path.read_text(encoding="utf-8")
+            
+    # Load Mind map
+    mindmap_path = out_dir / "mind_map.json"
+    if mindmap_path.exists():
+        with open(mindmap_path, "r", encoding="utf-8") as f:
+            arts["Mind map"] = json.load(f)
+
+
+# Load artifacts for the current notebook on startup
+load_existing_artifacts(ss.notebook)
+
+
 def attempt(label, fn, *args):
     try:
         with st.spinner(f"{label}..."):
             return fn(*args)
-    except Exception as e:  # show Ollama/parsing errors in the UI instead of crashing
+    except Exception as e:
         st.error(f"{label} failed: {e}")
         return None
 
@@ -34,10 +75,13 @@ with st.sidebar:
     picked = st.selectbox("Open", names, index=names.index(ss.notebook))
     if picked != ss.notebook:
         ss.notebook = picked
+        load_existing_artifacts(picked) # Load artifacts for the newly selected notebook
         st.rerun()
+        
     new_name = st.text_input("New notebook")
     if st.button("Create") and new_name.strip():
         ss.notebook = new_name.strip()
+        load_existing_artifacts(ss.notebook)
         st.rerun()
     nb = ss.notebook
 
@@ -110,15 +154,31 @@ with studio_tab:
     row1 = st.columns(3)
     for col, (name, fn) in zip(row1, text_tools.items()):
         if col.button(name, disabled=not selected):
-            arts[name] = attempt(f"Generating {name}", fn, nb, selected)
+            result = attempt(f"Generating {name}", fn, nb, selected)
+            if result:
+                arts[name] = result
+                # SAVE TO DISK FOR PERSISTENCE
+                file_path = config.output_dir(nb) / f"{name.replace(' ', '_').lower()}.md"
+                file_path.write_text(result, encoding="utf-8")
 
     row2 = st.columns(3)
     if row2[0].button("Mind map", disabled=not selected):
-        arts["Mind map"] = attempt("Generating mind map", studio.mind_map, nb, selected)
+        result = attempt("Generating mind map", studio.mind_map, nb, selected)
+        if result:
+            arts["Mind map"] = result
+            # SAVE TO DISK FOR PERSISTENCE
+            file_path = config.output_dir(nb) / "mind_map.json"
+            file_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+            
     if row2[1].button("Audio overview", disabled=not selected):
-        arts["Audio overview"] = attempt("Generating podcast (takes a few minutes)", audio.podcast, nb, selected)
+        result = attempt("Generating podcast (takes a few minutes)", audio.podcast, nb, selected)
+        if result:
+            arts["Audio overview"] = result
+            
     if row2[2].button("Video overview", disabled=not selected):
-        arts["Video overview"] = attempt("Generating video (takes a few minutes)", video.explainer, nb, selected)
+        result = attempt("Generating video (takes a few minutes)", video.explainer, nb, selected)
+        if result:
+            arts["Video overview"] = result
 
     for name in text_tools:
         if arts.get(name):
